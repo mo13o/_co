@@ -43,4 +43,28 @@ CHIP ALU {
 
     PARTS:
    // Put you code here:
+   // 1. 處理 X 訊號 (zx, nx)
+    Mux16(a=x, b=false, sel=zx, out=x1);      // zx: 決定是否將 x 歸零
+    Not16(in=x1, out=notx1);                  // nx: 將 x 反相備用
+    Mux16(a=x1, b=notx1, sel=nx, out=x2);     // nx: 決定是否輸出反相後的 x
+
+    // 2. 處理 Y 訊號 (zy, ny)
+    Mux16(a=y, b=false, sel=zy, out=y1);      // zy: 決定是否將 y 歸零
+    Not16(in=y1, out=noty1);                  // ny: 將 y 反相備用
+    Mux16(a=y1, b=noty1, sel=ny, out=y2);     // ny: 決定是否輸出反相後的 y
+
+    // 3. 執行核心運算 (f)
+    Add16(a=x2, b=y2, out=addResult);         // 計算 x + y
+    And16(a=x2, b=y2, out=andResult);         // 計算 x & y
+    Mux16(a=andResult, b=addResult, sel=f, out=fOut); // f: 根據選擇輸出加法或 AND 結果
+
+    // 4. 處理輸出與 ng 旗標 (no)
+    Not16(in=fOut, out=notFOut);              // no: 將運算結果反相備用
+    Mux16(a=fOut, b=notFOut, sel=no, out=out, out[15]=ng, out[0..7]=outLow, out[8..15]=outHigh); // 輸出最終結果，並同時擷取最高位元(ng)與前後半段(供 zr 判斷)
+
+    // 5. 判斷是否為零 (zr)
+    Or8Way(in=outLow, out=orLow);             // 檢查低 8 位元是否有任何 1
+    Or8Way(in=outHigh, out=orHigh);           // 檢查高 8 位元是否有任何 1
+    Or(a=orLow, b=orHigh, out=notZero);       // 只要 16 位元中有任何一個 1，notZero 就是 1
+    Not(in=notZero, out=zr);                  // 將其反相，若全為 0 則 zr 輸出 1
 }
