@@ -20,4 +20,28 @@ CHIP Computer {
 
     PARTS:
     // Put your code here:
+    // 程式記憶體：根據 CPU 輸出的 PC 讀取下一條指令
+    ROM32K(
+        address=pc,
+        out=instruction
+    );
+
+    // 中央處理器：執行指令，並與資料記憶體溝通
+    CPU(
+        inM=inM,
+        instruction=instruction,
+        reset=reset,
+        outM=outM,
+        writeM=writeM,
+        addressM=addressM,
+        pc=pc
+    );
+
+    // 資料記憶體：包含 RAM、Screen 與 Keyboard
+    Memory(
+        in=outM,
+        load=writeM,
+        address=addressM,
+        out=inM
+    );
 }

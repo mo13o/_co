@@ -40,4 +40,184 @@ CHIP CPU {
 
     PARTS:
     // Put your code here:
+    // ------------------------------------------------------------
+    // 1. A 暫存器
+    //
+    // A-instruction：A = instruction
+    // C-instruction 且 destination 包含 A：A = ALU output
+    // ------------------------------------------------------------
+
+    // instruction[15]:
+    // 0 = A-instruction
+    // 1 = C-instruction
+    Mux16(
+        a=instruction,
+        b=aluOut,
+        sel=instruction[15],
+        out=aInput
+    );
+
+    Not(
+        in=instruction[15],
+        out=isAInstruction
+    );
+
+    // instruction[5] 是 C-instruction 的 A destination bit
+    Or(
+        a=isAInstruction,
+        b=instruction[5],
+        out=loadA
+    );
+
+    ARegister(
+        in=aInput,
+        load=loadA,
+        out=aOutput,
+        out[0..14]=addressM
+    );
+
+    // ------------------------------------------------------------
+    // 2. D 暫存器
+    //
+    // C-instruction 且 destination 包含 D 時，
+    // 將 ALU 結果寫入 D 暫存器。
+    // ------------------------------------------------------------
+
+    And(
+        a=instruction[15],
+        b=instruction[4],
+        out=loadD
+    );
+
+    DRegister(
+        in=aluOut,
+        load=loadD,
+        out=dOutput
+    );
+
+    // ------------------------------------------------------------
+    // 3. 選擇 ALU 的 y 輸入
+    //
+    // instruction[12]（a-bit）：
+    // 0 → 使用 A
+    // 1 → 使用 M，也就是 inM
+    // ------------------------------------------------------------
+
+    Mux16(
+        a=aOutput,
+        b=inM,
+        sel=instruction[12],
+        out=aluY
+    );
+
+    // ------------------------------------------------------------
+    // 4. ALU
+    //
+    // ALU 的 x 固定來自 D。
+    // y 則由 instruction[12] 決定來自 A 或 M。
+    // instruction[11..6] 是六個 ALU 控制位元。
+    // ------------------------------------------------------------
+
+    ALU(
+        x=dOutput,
+        y=aluY,
+
+        zx=instruction[11],
+        nx=instruction[10],
+        zy=instruction[9],
+        ny=instruction[8],
+        f=instruction[7],
+        no=instruction[6],
+
+        out=aluOut,
+        out=outM,
+        zr=zr,
+        ng=ng
+    );
+
+    // ------------------------------------------------------------
+    // 5. Memory 寫入控制
+    //
+    // instruction[3] 是 M destination bit。
+    // 只有 C-instruction 才可以寫入 M。
+    // ------------------------------------------------------------
+
+    And(
+        a=instruction[15],
+        b=instruction[3],
+        out=writeM
+    );
+
+    // ------------------------------------------------------------
+    // 6. Jump 判斷
+    //
+    // instruction[2] = 小於 0 時跳躍
+    // instruction[1] = 等於 0 時跳躍
+    // instruction[0] = 大於 0 時跳躍
+    // ------------------------------------------------------------
+
+    // positive = !zr && !ng
+    Or(
+        a=zr,
+        b=ng,
+        out=zeroOrNegative
+    );
+
+    Not(
+        in=zeroOrNegative,
+        out=positive
+    );
+
+    And(
+        a=instruction[2],
+        b=ng,
+        out=jumpNegative
+    );
+
+    And(
+        a=instruction[1],
+        b=zr,
+        out=jumpZero
+    );
+
+    And(
+        a=instruction[0],
+        b=positive,
+        out=jumpPositive
+    );
+
+    Or(
+        a=jumpNegative,
+        b=jumpZero,
+        out=jumpNegativeOrZero
+    );
+
+    Or(
+        a=jumpNegativeOrZero,
+        b=jumpPositive,
+        out=jumpCondition
+    );
+
+    // A-instruction 不可以觸發跳躍
+    And(
+        a=instruction[15],
+        b=jumpCondition,
+        out=loadPC
+    );
+
+    // ------------------------------------------------------------
+    // 7. Program Counter
+    //
+    // 不跳躍時執行 PC = PC + 1。
+    // 跳躍時執行 PC = A。
+    // reset=1 時執行 PC = 0。
+    // ------------------------------------------------------------
+
+    PC(
+        in=aOutput,
+        load=loadPC,
+        inc=true,
+        reset=reset,
+        out[0..14]=pc
+    );
 }
